@@ -1,0 +1,28 @@
+# Dependencies & Virtual Envs
+node_modules/
+.venv/
+venv/
+ENV/
+
+# Python Cache & Artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Next.js & Build output
+.next/
+out/
+build/
+dist/
+
+# Local DBs & Stores
+chroma_db/
+*.sqlite3
+.env*
+
+# OS & IDE
+.DS_Store
+.vscode/
+.idea/
