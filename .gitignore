@@ -1,4 +1,3 @@
-# Dependencies & Virtual Envs
 node_modules/
 .venv/
 venv/
@@ -10,6 +9,7 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+docs-corpus/
 
 # Next.js & Build output
 .next/
