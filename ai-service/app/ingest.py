@@ -1,8 +1,9 @@
 """Ингест корпуса: docs-corpus/*.md -> чанки -> эмбеддинги -> таблица doc_chunks.
 
-Запуск из папки ai-service/:
-    python -m ingest --dry-run   # только показать чанки (без ключей и БД)
-    python -m ingest             # реально записать в Postgres
+Запуск из папки ai-service/ (команда зависит от того, где лежит этот файл):
+    python -m ingest --dry-run       # файл в ai-service/
+    python -m app.ingest --dry-run   # файл в ai-service/app/
+Без --dry-run чанки реально записываются в Postgres.
 
 Скрипт можно запускать сколько угодно раз:
   * новые чанки добавляются,
@@ -16,7 +17,17 @@ from pathlib import Path
 
 from app.chunking import load_corpus
 
-DEFAULT_DOCS_DIR = Path(__file__).resolve().parent / "docs-corpus"
+_HERE = Path(__file__).resolve().parent
+
+
+def find_docs_dir() -> Path:
+    """Ищет docs-corpus рядом с файлом и на уровень выше (файл может лежать в ai-service/ или в ai-service/app/)."""
+    candidates = [_HERE / "docs-corpus", _HERE.parent / "docs-corpus"]
+    for candidate in candidates:
+        if candidate.is_dir() and any(candidate.glob("*.md")):
+            return candidate
+    checked = "\n  ".join(str(c) for c in candidates)
+    raise SystemExit(f"Не найдено ни одного .md файла. Проверены папки:\n  {checked}")
 
 INSERT_SQL = """
 INSERT INTO doc_chunks (doc, section, content, content_hash, embedding)
@@ -26,7 +37,9 @@ ON CONFLICT (content_hash) DO NOTHING
 
 
 def dry_run() -> None:
-    chunks = load_corpus(DEFAULT_DOCS_DIR)
+    docs_dir = find_docs_dir()
+    print(f"Папка корпуса: {docs_dir} ({len(list(docs_dir.glob('*.md')))} файлов .md)\n")
+    chunks = load_corpus(docs_dir)
     for i, chunk in enumerate(chunks, 1):
         print(f"--- #{i} | {chunk.doc} | {chunk.section} | {len(chunk.content)} симв.")
         print(chunk.content)
