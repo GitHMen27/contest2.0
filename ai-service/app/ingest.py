@@ -52,6 +52,7 @@ def ingest() -> None:
     from app.config import get_settings
     from app.db import close_pool, connection
     from app.embeddings import embed_texts
+    from app.setup_db import DIM_SQL
 
     settings = get_settings()
     chunks = load_corpus(settings.docs_dir)
@@ -59,7 +60,11 @@ def ingest() -> None:
         raise SystemExit(f"В {settings.docs_dir} не найдено ни одного .md файла с текстом")
 
     with connection() as conn:
+        db_dim_row = conn.execute(DIM_SQL).fetchone()
+        if not db_dim_row:
+            raise SystemExit("Таблицы doc_chunks нет. Сначала выполни: python -m app.setup_db")
         existing = {row[0] for row in conn.execute("SELECT content_hash FROM doc_chunks").fetchall()}
+    db_dim = db_dim_row[0]
 
     current = {c.content_hash for c in chunks}
     new_chunks = [c for c in chunks if c.content_hash not in existing]
@@ -68,8 +73,11 @@ def ingest() -> None:
 
     vectors = embed_texts([c.content for c in new_chunks]) if new_chunks else []
     for vector in vectors:
-        if len(vector) != settings.embedding_dim:
-            raise SystemExit(f"Размерность {len(vector)} не равна EMBEDDING_DIM={settings.embedding_dim}")
+        if len(vector) != db_dim:
+            raise SystemExit(
+                f"Модель вернула вектор на {len(vector)} измерений, а в таблице doc_chunks {db_dim}. "
+                "Сменилась модель эмбеддингов? Выполни: python -m app.setup_db --recreate, затем python -m app.ingest"
+            )
 
     with connection() as conn:
         with conn.cursor() as cur:

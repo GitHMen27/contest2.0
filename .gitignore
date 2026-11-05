@@ -9,18 +9,22 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
-docs-corpus/
 
 # Next.js & Build output
 .next/
 out/
 build/
 dist/
+*.tsbuildinfo
 
 # Local DBs & Stores
 chroma_db/
 *.sqlite3
 .env*
+!.env.example
+
+# Evals: отчёты прогонов
+evals/results/
 
 # OS & IDE
 .DS_Store

@@ -1,70 +1,231 @@
 @import "tailwindcss";
-
 @import "leaflet/dist/leaflet.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050810;
+  --foreground: #e2e8f0;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
 }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+::selection {
+  background: #7c3aed;
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+select option {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+/* ---------- Leaflet ---------- */
 
 .leaflet-container.leaflet-container {
   width: 100%;
   height: 100%;
-  background-color: #0f172a;
+  background: #070b14;
+  font-family: inherit;
+  outline: none;
 }
 
-/* Базовый фильтр: снижен контраст, чтобы убрать ядовито-белые границы */
 .leaflet-container .leaflet-tile {
-  filter: brightness(0.7) invert(1) contrast(1.4) hue-rotate(200deg) saturate(0.3) !important;
+  filter: grayscale(0.8) invert(1) brightness(0.7) contrast(1.25) hue-rotate(195deg) saturate(0.5) !important;
 }
 
-/* Фон контейнера */
-.leaflet-container {
-  background: #090d16 !important;
+.leaflet-container .leaflet-tile-pane::after {
+  display: none;
 }
 
-/* Создаем контейнер под полупрозрачную «тёмную пелену» */
-.leaflet-tile-pane {
+.leaflet-control-attribution {
+  background: rgba(2, 6, 23, 0.72) !important;
+  color: #64748b !important;
+  backdrop-filter: blur(8px);
+  border-radius: 6px 0 0 0;
+}
+
+.leaflet-control-attribution a {
+  color: #94a3b8 !important;
+}
+
+.leaflet-bar {
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+.leaflet-control-zoom a {
+  background: rgba(2, 6, 23, 0.85) !important;
+  color: #cbd5e1 !important;
+  border-bottom-color: rgba(148, 163, 184, 0.12) !important;
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-control-zoom a:hover {
+  background: rgba(30, 41, 59, 0.95) !important;
+  color: #ffffff !important;
+}
+
+.leaflet-control-scale-line {
+  background: rgba(2, 6, 23, 0.7) !important;
+  border-color: rgba(148, 163, 184, 0.3) !important;
+  color: #94a3b8 !important;
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-popup-content-wrapper {
+  background: #0b1120 !important;
+  color: #e2e8f0 !important;
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55) !important;
+}
+
+.leaflet-popup-tip {
+  background: #0b1120 !important;
+  border: 1px solid rgba(148, 163, 184, 0.12) !important;
+}
+
+.leaflet-popup-content {
+  margin: 11px 13px !important;
+  line-height: 1.45 !important;
+}
+
+.leaflet-popup-close-button {
+  color: #94a3b8 !important;
+}
+
+.leaflet-popup-close-button:hover {
+  color: #ffffff !important;
+}
+
+.hub-tooltip {
+  background: rgba(2, 6, 23, 0.9) !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+  color: #e2e8f0 !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em;
+  padding: 3px 7px !important;
+}
+
+.hub-tooltip::before {
+  display: none !important;
+}
+
+.hub-marker,
+.truck-marker-wrapper {
+  background: transparent !important;
+  border: none !important;
+}
+
+.truck-marker {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 30%, #1e293b, #020617);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow:
+    0 0 0 4px rgba(15, 23, 42, 0.55),
+    0 10px 24px rgba(0, 0, 0, 0.5);
 }
 
-/* Тёмная пелена поверх слоя карт */
-.leaflet-tile-pane::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(9, 13, 22, 0.4); /* Мягкая тёмная вуаль */
-  pointer-events: none; /* Пропускает клики и зум к карте */
-  z-index: 1000;
+.truck-marker.priority {
+  border-color: #fbbf24;
+  box-shadow:
+    0 0 0 4px rgba(251, 191, 36, 0.14),
+    0 0 22px rgba(251, 191, 36, 0.45),
+    0 10px 24px rgba(0, 0, 0, 0.5);
 }
 
-/* Сохраняем яркими маркеры, всплывающие окна и линии маршрутов */
-.leaflet-marker-pane,
-.leaflet-overlay-pane,
-.leaflet-popup-pane {
-  z-index: 1001 !important;
-  filter: none !important;
+.truck-marker .truck-emoji {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.route-line-priority {
+  stroke-dasharray: 10 8;
+  animation: route-dash 1.2s linear infinite;
+}
+
+/* ---------- Animations ---------- */
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.65);
+    opacity: 0.75;
+  }
+  70%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@keyframes route-dash {
+  to {
+    stroke-dashoffset: -36;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }

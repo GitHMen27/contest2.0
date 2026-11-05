@@ -1,69 +1,110 @@
-"""Получение векторов через Gemini API.
+"""Получение векторов (эмбеддингов) для RAG.
+
+Основной вариант (EMBEDDING_PROVIDER=cloudru): модель Giga-Embeddings через Cloud.ru Foundation Models.
+Это OpenAI-совместимый API, поэтому используем обычную библиотеку openai с другим base_url.
+Запасной вариант (EMBEDDING_PROVIDER=gigachat): модель Embeddings из GigaChat API.
 
 Что здесь важно:
-1. output_dimensionality задаём явно (768), иначе модель вернёт 3072 и они не влезут в vector(768).
-2. Вектор нормализуем (длина = 1): после усечения размерности модель этого сама не делает,
-   а для косинусного сравнения единичная длина обязательна.
-3. Тексты отправляем пачками, а не по одному (быстрее и дешевле по числу запросов).
-4. Проверяем, что число векторов равно числу текстов. Если модель вернула один «склеенный» вектор
-   на всю пачку, откатываемся на запросы по одному тексту.
+1. Вектор нормализуем (длина = 1): для косинусного сравнения в pgvector это надёжнее.
+2. Тексты отправляем небольшими пачками.
+3. Проверяем, что число векторов равно числу текстов.
+4. Размер вектора не зашит в код: он определяется по ответу модели (get_embedding_dim).
+5. Giga-Embeddings-instruct учится на вопросах с инструкцией: вопросы пользователя отправляем в формате
+   «Instruct: ...\\nQuery: ...», а документы (чанки регламентов) без неё. Инструкция задаётся в
+   EMBEDDING_QUERY_INSTRUCTION; пустая строка отключает её.
 """
 from __future__ import annotations
 
-import time
+import math
 
-import numpy as np
-from google import genai
-from google.genai import types
+from app.errors import explain_error
 
-from app.config import get_settings
+BATCH_SIZE = 16
 
-_client: genai.Client | None = None
-
-
-def _get_client() -> genai.Client:
-    global _client
-    if _client is None:
-        _client = genai.Client(api_key=get_settings().gemini_api_key)
-    return _client
+_dim_cache: int | None = None
 
 
 def _normalize(values: list[float]) -> list[float]:
-    arr = np.asarray(values, dtype=np.float32)
-    norm = float(np.linalg.norm(arr))
-    return (arr / norm).tolist() if norm > 0 else arr.tolist()
+    norm = math.sqrt(sum(v * v for v in values))
+    return [v / norm for v in values] if norm > 0 else list(values)
 
 
-def _embed_call(contents: str | list[str]) -> list[list[float]]:
-    """Один вызов API с тремя попытками (лимиты и сетевые сбои бывают)."""
-    settings = get_settings()
-    last_error: Exception | None = None
-    for attempt in range(3):
-        try:
-            response = _get_client().models.embed_content(
-                model=settings.embedding_model,
-                contents=contents,
-                config=types.EmbedContentConfig(output_dimensionality=settings.embedding_dim),
-            )
-            return [_normalize(e.values) for e in response.embeddings]
-        except Exception as error:  # noqa: BLE001: тут нужна любая ошибка API
-            last_error = error
-            time.sleep(2 ** attempt)
-    raise RuntimeError(f"Не удалось получить эмбеддинг после 3 попыток: {last_error}") from last_error
+def format_query(text: str, instruction: str) -> str:
+    """Оформляет вопрос для instruct-модели. Без инструкции возвращает текст как есть."""
+    instruction = (instruction or "").strip()
+    return f"Instruct: {instruction}\nQuery: {text}" if instruction else text
 
 
-def embed_texts(texts: list[str], batch_size: int = 50) -> list[list[float]]:
-    """Эмбеддинги для списка текстов (в том же порядке)."""
+def _get_cloud_client():
+    """Клиент Cloud.ru Foundation Models (общий для эмбеддингов и чата)."""
+    from app.cloud_client import get_cloud_client
+
+    return get_cloud_client()
+
+
+def _embed_cloudru(texts: list[str], batch_size: int) -> list[list[float]]:
+    from app.config import get_settings
+
+    model = get_settings().cloud_embedding_model
+    client = _get_cloud_client()
     vectors: list[list[float]] = []
     for start in range(0, len(texts), batch_size):
         batch = texts[start:start + batch_size]
-        result = _embed_call(batch)
-        if len(result) != len(batch):
-            result = [_embed_call(text)[0] for text in batch]
-        vectors.extend(result)
+        try:
+            result = client.embeddings.create(model=model, input=batch)
+        except Exception as error:  # noqa: BLE001: любое исключение библиотеки превращаем в понятное сообщение
+            raise RuntimeError(explain_error(error, provider="cloudru")) from error
+        items = sorted(result.data, key=lambda item: getattr(item, "index", 0) or 0)
+        if len(items) != len(batch):
+            raise RuntimeError(f"Модель вернула {len(items)} векторов на {len(batch)} текстов")
+        vectors.extend(_normalize(list(item.embedding)) for item in items)
     return vectors
 
 
+def _embed_gigachat(texts: list[str], batch_size: int) -> list[list[float]]:
+    from app.config import get_settings
+    from app.gigachat_client import get_client
+
+    model = get_settings().gigachat_embedding_model
+    client = get_client()
+    vectors: list[list[float]] = []
+    for start in range(0, len(texts), batch_size):
+        batch = texts[start:start + batch_size]
+        try:
+            result = client.embeddings(batch, model=model)
+        except Exception as error:  # noqa: BLE001
+            raise RuntimeError(explain_error(error)) from error
+        items = sorted(result.data, key=lambda item: getattr(item, "index", 0) or 0)
+        if len(items) != len(batch):
+            raise RuntimeError(f"Модель вернула {len(items)} векторов на {len(batch)} текстов")
+        vectors.extend(_normalize(list(item.embedding)) for item in items)
+    return vectors
+
+
+def embed_texts(texts: list[str], batch_size: int = BATCH_SIZE) -> list[list[float]]:
+    """Эмбеддинги для списка текстов (в том же порядке). Так кодируются ДОКУМЕНТЫ: без инструкции."""
+    from app.config import get_settings
+
+    if not texts:
+        return []
+    if get_settings().embedding_provider == "gigachat":
+        return _embed_gigachat(texts, batch_size)
+    return _embed_cloudru(texts, batch_size)
+
+
 def embed_query(text: str) -> list[float]:
-    """Эмбеддинг одного вопроса пользователя."""
+    """Эмбеддинг одного вопроса пользователя (для cloudru с инструкцией, если она задана)."""
+    from app.config import get_settings
+
+    settings = get_settings()
+    if settings.embedding_provider == "cloudru":
+        text = format_query(text, settings.embedding_query_instruction)
     return embed_texts([text])[0]
+
+
+def get_embedding_dim() -> int:
+    """Реальный размер вектора. Определяется одним пробным запросом к модели и запоминается."""
+    global _dim_cache
+    if _dim_cache is None:
+        _dim_cache = len(embed_texts(["проверка размера вектора"])[0])
+    return _dim_cache

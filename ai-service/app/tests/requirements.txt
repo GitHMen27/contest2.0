@@ -2,7 +2,9 @@ fastapi
 uvicorn[standard]
 pydantic>=2
 pydantic-settings
-google-genai
+python-dotenv
+openai>=1.40
+gigachat>=0.2.3
 psycopg[binary]>=3.2
 psycopg-pool>=3.2
 pgvector
