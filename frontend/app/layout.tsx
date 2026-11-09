@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import { AuthGate } from '@/components/AuthGate';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -24,9 +25,17 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html
       lang="ru"
-      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`dark ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('theme')==='light'){document.documentElement.classList.remove('dark')}}catch(e){}`,
+          }}
+        />
+        <AuthGate>{children}</AuthGate>
+      </body>
     </html>
   );
 }

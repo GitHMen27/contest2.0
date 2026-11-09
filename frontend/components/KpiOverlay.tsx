@@ -8,53 +8,47 @@ interface KpiOverlayProps {
 }
 
 function riskTone(risk: number | null): string {
-  if (risk === null) return 'text-slate-400';
-  if (risk < 35) return 'text-emerald-300';
-  if (risk < 65) return 'text-amber-300';
-  return 'text-rose-300';
+  if (risk === null) return 'text-[var(--muted-soft)]';
+  if (risk < 35) return 'text-emerald-700';
+  if (risk < 65) return 'text-amber-700';
+  return 'text-rose-700';
+}
+
+function Stat({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="text-[11px] text-[var(--muted)]">{label}</span>
+      <span className={`text-[13px] font-semibold ${valueClassName ?? 'text-[var(--text)]'}`}>{value}</span>
+    </div>
+  );
 }
 
 export function KpiOverlay({ activeShipments, networkLoad, criticalHubs, routeRisk }: KpiOverlayProps) {
   return (
-    <div className="pointer-events-none absolute left-3 top-3 z-[1000] hidden w-[300px] grid-cols-2 gap-1.5 lg:grid">
-      <div className="pointer-events-auto rounded-xl border border-white/10 bg-slate-950/70 p-2.5 shadow-xl backdrop-blur-xl">
-        <div className="flex items-center justify-between">
-          <span className="text-[8px] uppercase tracking-[0.18em] text-slate-500">В пути</span>
-          <span className="h-1 w-1 animate-pulse rounded-full bg-emerald-400" />
-        </div>
-        <div className="mt-1 text-xl font-semibold text-white">{activeShipments}</div>
-        <div className="text-[8px] text-slate-500">активных рейсов</div>
-      </div>
-
-      <div className="pointer-events-auto rounded-xl border border-white/10 bg-slate-950/70 p-2.5 shadow-xl backdrop-blur-xl">
-        <div className="flex items-center justify-between">
-          <span className="text-[8px] uppercase tracking-[0.18em] text-slate-500">Сеть РЦ</span>
-          <span className="text-[8px] text-slate-500">6 РЦ</span>
-        </div>
-        <div className="mt-1 text-xl font-semibold text-white">{networkLoad}%</div>
-        <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full rounded-full bg-linear-to-r from-emerald-400 via-amber-400 to-rose-400"
-            style={{ width: `${networkLoad}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="pointer-events-auto rounded-xl border border-white/10 bg-slate-950/70 p-2.5 shadow-xl backdrop-blur-xl">
-        <span className="text-[8px] uppercase tracking-[0.18em] text-slate-500">Критичных РЦ</span>
-        <div className={`mt-1 text-xl font-semibold ${criticalHubs > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
-          {criticalHubs}
-        </div>
-        <div className="text-[8px] text-slate-500">требуют внимания</div>
-      </div>
-
-      <div className="pointer-events-auto rounded-xl border border-white/10 bg-slate-950/70 p-2.5 shadow-xl backdrop-blur-xl">
-        <span className="text-[8px] uppercase tracking-[0.18em] text-slate-500">Риск маршрута</span>
-        <div className={`mt-1 text-xl font-semibold ${riskTone(routeRisk)}`}>
-          {routeRisk === null ? '—' : `${routeRisk}%`}
-        </div>
-        <div className="text-[8px] text-slate-500">по выбранному плечу</div>
-      </div>
+    <div className="hidden shrink-0 items-center gap-6 border-b border-[var(--line)] bg-[var(--surface)] px-6 py-2.5 lg:flex">
+      <Stat label="В пути" value={String(activeShipments)} />
+      <span className="h-4 w-px bg-[var(--line)]" />
+      <Stat label="Загрузка сети" value={`${networkLoad}%`} />
+      <span className="h-4 w-px bg-[var(--line)]" />
+      <Stat
+        label="Критичные РЦ"
+        value={String(criticalHubs)}
+        valueClassName={criticalHubs > 0 ? 'text-rose-700' : 'text-emerald-700'}
+      />
+      <span className="h-4 w-px bg-[var(--line)]" />
+      <Stat
+        label="Риск маршрута"
+        value={routeRisk === null ? '—' : `${routeRisk}%`}
+        valueClassName={riskTone(routeRisk)}
+      />
     </div>
   );
 }

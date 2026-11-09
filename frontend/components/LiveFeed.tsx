@@ -11,80 +11,69 @@ export function LiveFeed({ shipments }: LiveFeedProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-b border-white/5 px-3 py-2.5">
+      <div className="flex items-center justify-between border-b border-[var(--line-soft)] px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          </span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-            Live feed
-          </span>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <span className="text-xs font-semibold text-[var(--text)]">Активные рейсы</span>
         </div>
         <div className="flex items-center gap-1.5">
           {priorityCount > 0 ? (
-            <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-1.5 py-0.5 text-[8px] font-semibold text-amber-300">
+            <span className="rounded-full bg-[var(--priority-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--priority)]">
               {priorityCount} приоритет
             </span>
           ) : null}
-          <span className="rounded-full border border-white/5 bg-white/[0.03] px-1.5 py-0.5 text-[8px] text-slate-500">
+          <span className="rounded-full bg-[var(--surface-muted)] px-1.5 py-0.5 text-[10px] text-[var(--muted)]">
             {shipments.length} в пути
           </span>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 py-2.5">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-3">
         {shipments.length === 0 ? (
-          <div className="flex h-full min-h-32 flex-col items-center justify-center gap-2 text-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/5 bg-white/[0.02] text-base">
-              🛰
-            </div>
-            <div className="text-[10px] text-slate-500">Инициализация потока данных…</div>
+          <div className="flex h-full min-h-28 flex-col items-center justify-center gap-1.5 text-center">
+            <div className="text-[11px] text-[var(--muted)]">Поток данных запускается…</div>
+            <div className="text-[10px] text-[var(--muted-soft)]">Рейсы появятся через несколько секунд</div>
           </div>
         ) : (
           shipments.map((shipment) => (
             <div
               key={shipment.id}
-              className={`rounded-xl border px-2.5 py-2 transition-all ${
-                shipment.isPriority
-                  ? 'border-amber-400/40 bg-amber-500/[0.07] shadow-[0_0_24px_-14px_rgba(251,191,36,0.8)]'
-                  : 'border-white/5 bg-slate-900/50'
+              className={`rounded-lg border px-3 py-2.5 ${
+                shipment.isPriority ? 'border-[var(--priority-line)] bg-[var(--priority-soft)]' : 'border-[var(--line)] bg-[var(--surface)]'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <span
-                  className={`truncate font-mono text-[10px] font-semibold ${
-                    shipment.isPriority ? 'text-amber-200' : 'text-slate-300'
+                  className={`truncate font-mono text-[11px] font-medium ${
+                    shipment.isPriority ? 'text-[var(--priority)]' : 'text-[var(--text)]'
                   }`}
                 >
                   {shipment.id}
                 </span>
                 {shipment.isPriority ? (
-                  <span className="shrink-0 rounded bg-amber-400 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-950">
-                    ⚡ приоритет
+                  <span className="shrink-0 rounded bg-[var(--surface)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--priority)] ring-1 ring-[var(--priority-line)]">
+                    приоритет
                   </span>
                 ) : (
-                  <span className="flex shrink-0 items-center gap-1 text-[8px] text-slate-500">
-                    <span className="h-1 w-1 rounded-full bg-emerald-400" />
+                  <span className="flex shrink-0 items-center gap-1 text-[10px] text-[var(--muted)]">
+                    <span className="h-1 w-1 rounded-full bg-emerald-500" />
                     {shipment.statusText}
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 truncate text-[10px] text-slate-400">
-                {shipment.fromName} <span className="text-slate-600">→</span> {shipment.toName}
+              <div className="mt-0.5 truncate text-[10px] text-[var(--muted)]">
+                {shipment.fromName} <span className="text-[var(--muted-soft)]">→</span> {shipment.toName}
               </div>
               <div className="mt-1.5 flex items-center gap-2">
-                <div className="h-1 flex-1 overflow-hidden rounded-full bg-slate-800">
+                <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--surface-muted)]">
                   <div
                     className={`h-full rounded-full transition-all duration-100 ${
-                      shipment.isPriority
-                        ? 'bg-linear-to-r from-amber-400 to-orange-400'
-                        : 'bg-linear-to-r from-purple-500 to-indigo-400'
+                      shipment.isPriority ? 'bg-[var(--priority)]' : 'bg-[var(--accent)]'
                     }`}
                     style={{ width: `${Math.min(shipment.progress, 100)}%` }}
                   />
                 </div>
-                <span className="w-8 text-right font-mono text-[8px] text-slate-500">
+                <span className="w-8 text-right font-mono text-[9px] text-[var(--muted-soft)]">
                   {Math.round(shipment.progress)}%
                 </span>
               </div>

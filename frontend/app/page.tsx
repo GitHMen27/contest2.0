@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
+import { ArrowRight, ArrowUpRight, CircleHelp, Route as RouteIcon, Sparkles, Truck } from 'lucide-react';
 import { HUBS, getHub } from '@/constants/hubs';
 import { calculateAiAnalytics } from '@/constants/aiHelper';
 import {
@@ -11,22 +12,25 @@ import {
   type DemoScenario,
 } from '@/constants/demoKnowledge';
 import { AiAnalyticsCard } from '@/components/AiAnalyticsCard';
-import { AiAssistant } from '@/components/AiAssistant';
+import { AiAssistant, type BackendStatus } from '@/components/AiAssistant';
 import { HowItWorksModal } from '@/components/HowItWorksModal';
+import { HubAdminPanel } from '@/components/HubAdminPanel';
 import { LiveFeed } from '@/components/LiveFeed';
 import { KpiOverlay } from '@/components/KpiOverlay';
 import { ScenarioPicker } from '@/components/ScenarioPicker';
-import type { ActiveShipment, ChatMessage, HubStatus } from '@/types/logistics';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { UserMenu } from '@/components/UserMenu';
+import { useAuth } from '@/lib/auth';
+import { BACKEND_CONFIGURED, askBackend, pingBackend } from '@/lib/ragApi';
+import type { ActiveShipment, ChatMessage } from '@/types/logistics';
 
 const Map = dynamic(() => import('@/components/Map'), {
   ssr: false,
   loading: () => (
-    <div className="flex h-full w-full items-center justify-center bg-[#070b14]">
+    <div className="flex h-full w-full items-center justify-center bg-[var(--surface-muted)]">
       <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-500/20 border-t-purple-400" />
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
-          инициализация карты
-        </span>
+        <div className="h-7 w-7 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--accent)]" />
+        <span className="text-[11px] text-[var(--muted)]">Загружаем карту…</span>
       </div>
     </div>
   ),
@@ -34,16 +38,37 @@ const Map = dynamic(() => import('@/components/Map'), {
 
 type RouteStatus = 'ready' | 'loading' | 'in_transit' | 'delivered' | 'error';
 
+/** Вкладки левой панели: каждая показывает одно действие, чтобы панель не была перегружена. */
+type LeftTab = 'route' | 'scenarios' | 'trips';
+
+const LEFT_TABS: { id: LeftTab; label: string; Icon: typeof Truck }[] = [
+  { id: 'route', label: 'Маршрут', Icon: RouteIcon },
+  { id: 'scenarios', label: 'Сценарии', Icon: Sparkles },
+  { id: 'trips', label: 'Рейсы', Icon: Truck },
+];
+
+/** Подписка на CSS-медиазапрос без setState внутри эффекта. */
+function useMediaQuery(query: string): boolean {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const media = window.matchMedia(query);
+      media.addEventListener('change', onChange);
+      return () => media.removeEventListener('change', onChange);
+    },
+    [query],
+  );
+
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
+
 const INITIAL_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
   text: 'Я демо-версия RAG-помощника. Отвечаю по 9 регламентам логистики и показываю источники. Выберите сценарий слева или задайте вопрос — например, про отдых водителя или перегрузку РЦ.',
-};
-
-const HUB_DOT: Record<HubStatus, string> = {
-  optimal: 'bg-emerald-400',
-  warning: 'bg-amber-400',
-  critical: 'bg-rose-400',
 };
 
 /**
@@ -78,16 +103,31 @@ export default function Home() {
 
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_MESSAGE]);
   const [isTyping, setIsTyping] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>(BACKEND_CONFIGURED ? 'checking' : 'demo-only');
+  const [backendInfo, setBackendInfo] = useState<{ chunks: number | null; llmModel: string | null }>({
+    chunks: null,
+    llmModel: null,
+  });
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [showTech, setShowTech] = useState(false);
+  const [adminHubId, setAdminHubId] = useState<string | null>(null);
+  const [ragOverride, setRagOverride] = useState<boolean | null>(null);
   const [clock, setClock] = useState('');
+  const [leftTab, setLeftTab] = useState<LeftTab>('route');
+  const { isAdmin } = useAuth();
+
+  // На больших экранах помощник открыт сразу, на мобильных — по кнопке.
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const ragOpen = ragOverride ?? isDesktop;
 
   const animFrameRef = useRef<number | null>(null);
   const bgAnimFrameRef = useRef<number | null>(null);
-  const answerTimerRef = useRef<number | null>(null);
+  const answerTimersRef = useRef<Set<number>>(new Set());
+  const pendingAnswersRef = useRef(0);
 
   const startHubObj = useMemo(() => getHub(fromHub) ?? null, [fromHub]);
   const endHubObj = useMemo(() => getHub(toHub) ?? null, [toHub]);
+  const adminHub = useMemo(() => (adminHubId ? getHub(adminHubId) ?? null : null), [adminHubId]);
 
   const aiAnalytics = useMemo(() => {
     if (!startHubObj || !endHubObj || startHubObj.id === endHubObj.id) return null;
@@ -113,6 +153,15 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!ragOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRagOverride(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [ragOpen]);
+
   const stopAnimation = useCallback(() => {
     if (animFrameRef.current !== null) {
       cancelAnimationFrame(animFrameRef.current);
@@ -121,12 +170,32 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const timers = answerTimersRef.current;
     return () => {
       stopAnimation();
       if (bgAnimFrameRef.current !== null) cancelAnimationFrame(bgAnimFrameRef.current);
-      if (answerTimerRef.current !== null) window.clearTimeout(answerTimerRef.current);
+      timers.forEach((timer) => window.clearTimeout(timer));
+      timers.clear();
     };
   }, [stopAnimation]);
+
+  // Проверяем бэкенд при открытии страницы. Заодно это «будит» бесплатный хостинг, который засыпает без запросов.
+  useEffect(() => {
+    if (!BACKEND_CONFIGURED) return;
+    let cancelled = false;
+    void pingBackend().then((health) => {
+      if (cancelled) return;
+      if (health) {
+        setBackendStatus('online');
+        setBackendInfo({ chunks: health.chunks, llmModel: health.llmModel });
+      } else {
+        setBackendStatus('offline');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const fetchRouteCoords = useCallback(
     async (startCoords: [number, number], endCoords: [number, number]): Promise<[number, number][] | null> => {
@@ -323,31 +392,103 @@ export default function Home() {
     const trimmed = question.trim();
     if (!trimmed) return;
 
+    // Любой вопрос показывает ответ: открываем панель помощника, если она была закрыта.
+    setRagOverride(true);
+
     setMessages((previous) => [
       ...previous,
       { id: `user-${Date.now()}-${Math.random()}`, role: 'user', text: trimmed },
     ]);
+
+    // Вопросов может быть несколько одновременно (сценарий или кнопка «Спросить AI» во время ожидания):
+    // каждому нужен свой ответ, индикатор «печатает» до тех пор, пока не ответят все.
+    pendingAnswersRef.current += 1;
     setIsTyping(true);
 
-    if (answerTimerRef.current !== null) window.clearTimeout(answerTimerRef.current);
-    const answer = findDemoAnswer(trimmed);
+    // Ответ «в регламентах этого нет»: через секунду предлагаем вопросы, на которые ответ есть (1–4 варианта, как в начале).
+    const scheduleFollowUp = () => {
+      const followUpId = `assistant-followup-${Date.now()}-${Math.random()}`;
+      const timer = window.setTimeout(() => {
+        answerTimersRef.current.delete(timer);
+        setMessages((previous) => {
+          const asked = new Set(
+            previous.filter((item) => item.role === 'user').map((item) => item.text.trim().toLowerCase()),
+          );
+          const fresh = SUGGESTED_QUESTIONS.filter((item) => !asked.has(item.trim().toLowerCase()));
+          const options = (fresh.length > 0 ? fresh : SUGGESTED_QUESTIONS).slice(0, 4);
+          if (options.length === 0) return previous;
+          return [
+            ...previous,
+            {
+              id: followUpId,
+              role: 'assistant',
+              text: 'В регламентах на этот вопрос ответа нет. Вот вопросы, на которые я могу ответить:',
+              suggestions: options,
+            },
+          ];
+        });
+      }, 1000);
+      answerTimersRef.current.add(timer);
+    };
 
-    answerTimerRef.current = window.setTimeout(
-      () => {
-        setMessages((previous) => [
-          ...previous,
-          {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            text: answer.answer,
-            sources: answer.sources,
-            latencyMs: answer.latencyMs,
-          },
-        ]);
-        setIsTyping(false);
-      },
-      Math.min(1300, Math.max(500, answer.latencyMs)),
-    );
+    const finish = (message: Omit<ChatMessage, 'id' | 'role'>) => {
+      setMessages((previous) => [
+        ...previous,
+        { id: `assistant-${Date.now()}-${Math.random()}`, role: 'assistant', ...message },
+      ]);
+      pendingAnswersRef.current = Math.max(0, pendingAnswersRef.current - 1);
+      if (pendingAnswersRef.current === 0) setIsTyping(false);
+      if (message.refusal) scheduleFollowUp();
+    };
+
+    const answerFromDemo = (note?: string) => {
+      const demo = findDemoAnswer(trimmed);
+      const timer = window.setTimeout(
+        () => {
+          answerTimersRef.current.delete(timer);
+          finish({
+            text: demo.answer,
+            sources: demo.sources,
+            latencyMs: demo.latencyMs,
+            origin: 'demo',
+            refusal: demo.sources.length === 0,
+            note,
+          });
+        },
+        Math.min(1300, Math.max(500, demo.latencyMs)),
+      );
+      answerTimersRef.current.add(timer);
+    };
+
+    if (!BACKEND_CONFIGURED) {
+      answerFromDemo();
+      return;
+    }
+
+    void askBackend(trimmed).then((result) => {
+      if (result.ok) {
+        setBackendStatus('online');
+        finish({
+          text: result.text,
+          sources: result.sources,
+          latencyMs: result.latencyMs,
+          origin: 'live',
+          // Бэкенд не показывает источники под отказом «в регламентах нет ответа»
+          refusal: result.sources.length === 0,
+        });
+        return;
+      }
+
+      if (result.kind === 'rate-limit' || result.kind === 'validation') {
+        // Не сбой бэкенда, а ограничение или неподходящий вопрос: честно говорим об этом, а не подменяем ответ демо-базой
+        finish({ text: result.message, origin: 'error' });
+        return;
+      }
+
+      // Бэкенд недоступен или сломан: демо не должно ломаться, показываем ответ из локальной базы
+      setBackendStatus('offline');
+      answerFromDemo('Бэкенд сейчас недоступен: показан ответ из локальной демо-базы.');
+    });
   }, []);
 
   const applyScenario = useCallback(
@@ -389,79 +530,120 @@ export default function Home() {
     });
   }, [shipmentFeed, trackNumber, truckPosition, activeRoute]);
 
+  const assistantProps = {
+    messages,
+    isTyping,
+    suggestions: SUGGESTED_QUESTIONS,
+    onAsk: ask,
+    onOpenTech: () => setShowTech(true),
+    backendStatus,
+    chunks: backendInfo.chunks,
+    modelLabel: backendInfo.llmModel,
+  };
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#050810] text-slate-100">
-      <header className="relative z-30 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-white/5 bg-slate-950/85 px-4 backdrop-blur-xl">
+    <div className="flex h-screen flex-col overflow-hidden text-[var(--text)]">
+      <header className="header-brand relative z-30 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-[var(--line)] px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-linear-to-tr from-purple-600 via-indigo-500 to-fuchsia-500 text-[11px] font-black text-white shadow-lg shadow-purple-600/30">
+          <div className="gradient-brand flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold tracking-wide text-[var(--accent-contrast)]">
             WB
-            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-slate-950 bg-emerald-400" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-sm font-semibold tracking-wide text-white">
-                WB Logistics Command Center
-              </h1>
-              <span className="hidden rounded border border-purple-400/25 bg-purple-500/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-purple-300 sm:inline">
-                demo
-              </span>
-            </div>
-            <p className="hidden truncate text-[10px] text-slate-500 sm:block">
-              AI-диспетчер · карта, риск-анализ и RAG по регламентам
+            <h1 className="truncate text-sm font-semibold text-[var(--text)]">WB Логистика</h1>
+            <p className="hidden truncate text-[11px] text-[var(--muted)] sm:block">
+              Диспетчерская · карта рейсов, регламенты и RAG
             </p>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1.5 md:flex">
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="hidden items-center gap-2 md:flex">
             <span
               className={`h-1.5 w-1.5 rounded-full ${
-                status === 'error' ? 'bg-rose-400' : 'bg-emerald-400'
-              } ${status === 'in_transit' ? 'animate-pulse' : ''}`}
+                status === 'error' ? 'bg-rose-500' : status === 'delivered' ? 'bg-[var(--muted-soft)]' : 'bg-emerald-500'
+              }`}
             />
-            <span className="max-w-[230px] truncate font-mono text-[9px] text-slate-400">
+            <span className="max-w-[240px] truncate text-[11px] text-[var(--muted)]">
               {trackNumber ? `${trackNumber} · ${statusText}` : statusText}
             </span>
           </div>
 
           <div className="hidden text-right sm:block">
-            <div className="font-mono text-sm font-semibold tabular-nums text-slate-200">{clock}</div>
-            <div className="text-[8px] uppercase tracking-[0.18em] text-slate-600">local time</div>
+            <div className="text-[13px] font-medium tabular-nums text-[var(--text)]">{clock}</div>
           </div>
+
+          <ThemeToggle />
 
           <button
             type="button"
             onClick={() => setShowTech(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2 text-[10px] font-medium text-slate-300 transition hover:border-purple-400/40 hover:bg-purple-500/10 hover:text-purple-200"
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
           >
-            <span>⚙</span>
+            <CircleHelp className="h-3.5 w-3.5 text-[var(--muted-soft)]" aria-hidden="true" />
             <span className="hidden sm:inline">Как это работает</span>
             <span className="sm:hidden">RAG</span>
           </button>
+
+          <UserMenu />
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <aside className="flex h-[46vh] w-full shrink-0 flex-col gap-2.5 overflow-y-auto border-b border-white/5 bg-[#070b14] p-3 lg:h-auto lg:w-[390px] lg:border-b-0 lg:border-r xl:w-[420px]">
-          <ScenarioPicker scenarios={SCENARIOS} activeId={activeScenario} onSelect={applyScenario} />
+      <KpiOverlay
+        activeShipments={activeCount}
+        networkLoad={networkLoad}
+        criticalHubs={criticalHubs}
+        routeRisk={aiAnalytics?.riskScore ?? null}
+      />
 
-          <section className="shrink-0 rounded-2xl border border-white/8 bg-slate-900/50 p-3.5">
-            <div className="mb-2.5 flex items-center justify-between">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Диспетчерская
-              </h2>
-              <span className="flex items-center gap-1 text-[8px] text-emerald-400">
-                <span className="h-1 w-1 rounded-full bg-emerald-400" /> OSRM live
-              </span>
-            </div>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <aside className="flex h-[48vh] w-full shrink-0 flex-col gap-4 overflow-y-auto overflow-x-hidden border-b border-[var(--line)] bg-[var(--surface)] p-4 lg:h-auto lg:w-[360px] lg:border-b-0 lg:border-r xl:w-[380px]">
+          <div
+            role="tablist"
+            aria-label="Разделы панели"
+            className="grid shrink-0 grid-cols-3 gap-1 rounded-xl border border-[var(--line)] bg-[var(--surface-soft)] p-1"
+          >
+            {LEFT_TABS.map(({ id, label, Icon }) => {
+              const selected = leftTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setLeftTab(id)}
+                  className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-medium transition ${
+                    selected
+                      ? 'bg-[var(--surface)] text-[var(--accent)] shadow-sm ring-1 ring-[var(--accent-line)]'
+                      : 'text-[var(--muted)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {label}
+                  {id === 'trips' && activeCount > 0 ? (
+                    <span className="rounded-full bg-[var(--accent-soft-2)] px-1.5 text-[9px] font-semibold text-[var(--accent)]">
+                      {activeCount}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+
+          {leftTab === 'scenarios' ? (
+            <ScenarioPicker scenarios={SCENARIOS} activeId={activeScenario} onSelect={applyScenario} />
+          ) : null}
+
+          {leftTab === 'route' ? (
+            <>
+          <section className="shrink-0 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
 
             <div className="grid grid-cols-2 gap-2">
-              <label className="block">
-                <span className="mb-1 block text-[9px] uppercase tracking-[0.14em] text-slate-500">Откуда</span>
+              <label className="block min-w-0">
+                <span className="mb-1 block text-[11px] text-[var(--muted)]">Откуда</span>
                 <select
                   value={fromHub}
                   onChange={(event) => handleFromChange(event.target.value)}
-                  className="w-full cursor-pointer rounded-xl border border-white/10 bg-slate-950/70 px-2.5 py-2 text-[11px] text-slate-200 focus:border-purple-400/50 focus:outline-none"
+                  className="h-9 w-full min-w-0 cursor-pointer rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2 text-[10px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
                 >
                   {HUBS.map((hub) => (
                     <option key={hub.id} value={hub.id}>
@@ -471,12 +653,12 @@ export default function Home() {
                 </select>
               </label>
 
-              <label className="block">
-                <span className="mb-1 block text-[9px] uppercase tracking-[0.14em] text-slate-500">Куда</span>
+              <label className="block min-w-0">
+                <span className="mb-1 block text-[11px] text-[var(--muted)]">Куда</span>
                 <select
                   value={toHub}
                   onChange={(event) => handleToChange(event.target.value)}
-                  className="w-full cursor-pointer rounded-xl border border-white/10 bg-slate-950/70 px-2.5 py-2 text-[11px] text-slate-200 focus:border-purple-400/50 focus:outline-none"
+                  className="h-9 w-full min-w-0 cursor-pointer rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2 text-[10px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
                 >
                   {HUBS.map((hub) => (
                     <option key={hub.id} value={hub.id} disabled={hub.id === fromHub}>
@@ -487,30 +669,21 @@ export default function Home() {
               </label>
             </div>
 
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {HUBS.map((hub) => (
-                <span key={hub.id} className="flex items-center gap-1 text-[8px] text-slate-500">
-                  <span className={`h-1 w-1 rounded-full ${HUB_DOT[hub.status]}`} />
-                  {hub.name}
-                </span>
-              ))}
-            </div>
-
             <button
               type="button"
               onClick={handleStartRoute}
               disabled={status === 'loading'}
-              className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-linear-to-r from-purple-600 to-indigo-600 py-2.5 text-[11px] font-semibold text-white shadow-lg shadow-purple-600/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              className="gradient-brand mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg py-2.5 text-[11px] font-medium text-[var(--accent-contrast)] transition disabled:cursor-not-allowed disabled:opacity-60"
             >
               {status === 'loading' ? (
                 <>
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/35 border-t-white" />
                   Построение маршрута…
                 </>
               ) : (
                 <>
-                  <span>⚡</span>
                   Запустить приоритетный рейс
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                 </>
               )}
             </button>
@@ -521,81 +694,47 @@ export default function Home() {
             isLoading={status === 'loading' && !aiAnalytics}
             onAsk={ask}
           />
+            </>
+          ) : null}
 
-          <section className="flex min-h-[240px] shrink-0 flex-col overflow-hidden rounded-2xl border border-white/8 bg-slate-950/60">
-            <LiveFeed shipments={shipmentFeed} />
-          </section>
-
-          <section className="h-[440px] shrink-0 overflow-hidden rounded-2xl border border-white/8 bg-slate-950/60 lg:hidden">
-            <AiAssistant
-              messages={messages}
-              isTyping={isTyping}
-              suggestions={SUGGESTED_QUESTIONS}
-              onAsk={ask}
-              onOpenTech={() => setShowTech(true)}
-            />
-          </section>
+          {leftTab === 'trips' ? (
+            <section className="flex min-h-[220px] flex-1 flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]">
+              <LiveFeed shipments={shipmentFeed} />
+            </section>
+          ) : null}
         </aside>
 
-        <main className="relative min-h-[44vh] flex-1 lg:min-h-0">
-          <Map shipments={mapShipments} />
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-[500] h-24 bg-linear-to-b from-slate-950/50 to-transparent" />
-
-          <KpiOverlay
-            activeShipments={activeCount}
-            networkLoad={networkLoad}
-            criticalHubs={criticalHubs}
-            routeRisk={aiAnalytics?.riskScore ?? null}
-          />
-
-          <div className="absolute right-3 top-3 z-[1000] hidden h-[470px] max-h-[calc(100%_-_24px)] w-[320px] flex-col overflow-hidden rounded-2xl border border-purple-400/20 bg-slate-950/90 shadow-2xl shadow-black/50 backdrop-blur-xl lg:flex xl:h-[500px] xl:w-[360px]">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-purple-400/60 to-transparent" />
-            <AiAssistant
-              messages={messages}
-              isTyping={isTyping}
-              suggestions={SUGGESTED_QUESTIONS}
-              onAsk={ask}
-              onOpenTech={() => setShowTech(true)}
-            />
-          </div>
-
-          <div className="pointer-events-none absolute bottom-12 left-3 z-[1000] hidden w-[168px] rounded-xl border border-white/10 bg-slate-950/70 p-2.5 text-[9px] text-slate-400 shadow-xl backdrop-blur-xl sm:block">
-            <div className="mb-1.5 text-[8px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Слой сети
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> optimal
-                </span>
-                <span className="text-slate-600">&lt;70%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> warning
-                </span>
-                <span className="text-slate-600">70–90%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400" /> critical
-                </span>
-                <span className="text-slate-600">&gt;90%</span>
-              </div>
-            </div>
-            <div className="mt-2 space-y-1 border-t border-white/5 pt-2">
-              <div className="flex items-center gap-1.5">
-                <span className="h-px w-4 bg-amber-400" /> приоритет
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="h-px w-4 bg-purple-500" /> фоновый рейс
-              </div>
-            </div>
-          </div>
+        <main className="relative min-h-[46vh] flex-1 lg:min-h-0">
+          <Map shipments={mapShipments} onOpenAdmin={isAdmin ? setAdminHubId : undefined} canAdmin={isAdmin} />
         </main>
       </div>
 
+      {!ragOpen ? (
+        <button
+          type="button"
+          onClick={() => setRagOverride(true)}
+          className="fixed right-3 top-[68px] z-[1200] flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-[11px] font-medium text-[var(--text)] shadow-md shadow-[#2a0f3a]/10 transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-soft)] lg:right-4 lg:top-[122px]"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          RAG-помощник
+          <ArrowUpRight className="h-3.5 w-3.5 text-[var(--muted-soft)]" aria-hidden="true" />
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => setRagOverride(false)}
+            aria-label="Закрыть помощника"
+            className="fixed inset-0 z-[1400] bg-[#160b20]/35 backdrop-blur-[1px] lg:hidden"
+          />
+          <div className="fixed inset-x-3 bottom-3 z-[1500] flex h-[72vh] flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-xl shadow-[#2a0f3a]/15 sm:left-auto sm:w-[380px] lg:bottom-auto lg:right-4 lg:top-[122px] lg:h-[540px] lg:max-h-[calc(100vh-140px)]">
+            <AiAssistant {...assistantProps} onClose={() => setRagOverride(false)} />
+          </div>
+        </>
+      )}
+
       <HowItWorksModal open={showTech} onClose={() => setShowTech(false)} />
+      <HubAdminPanel hub={isAdmin ? adminHub : null} onClose={() => setAdminHubId(null)} />
     </div>
   );
 }

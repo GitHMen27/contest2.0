@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/backend/:path*",
+      "destination": "https://container-app-pp1pi-raise.containerapps.ru/:path*"
+    }
+  ]
+}

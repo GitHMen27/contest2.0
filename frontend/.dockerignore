@@ -1,0 +1,31 @@
+# Секреты и локальные файлы окружения: в образ не попадают никогда
+.env
+.env.*
+*.env
+*.pem
+*.key
+
+# Зависимости и артефакты сборки (внутри образа всё ставится и собирается заново)
+node_modules
+.next
+out
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+
+# Git, IDE, ОС
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Docker-файлы и документация: для сборки не нужны
+Dockerfile
+.dockerignore
+docker-compose*.yml
+*.md
+
+# Локальный SQL-дамп: сайт его не использует
+database

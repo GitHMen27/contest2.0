@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from app.auth import router as auth_router
 from app.config import get_settings
 from app.ratelimit import RateLimiter
 
@@ -54,6 +55,7 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+app.include_router(auth_router)
 
 
 def guard(request: Request, x_api_key: str | None = Header(default=None)) -> None:

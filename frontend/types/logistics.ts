@@ -9,6 +9,10 @@ export interface Hub {
   coords: [number, number];
   status: HubStatus;
   load: number;
+  /** Активная точка: подсвечивается на карте и открывает меню действий. */
+  isActive?: boolean;
+  /** Публичный сайт точки. */
+  siteUrl?: string;
 }
 
 export interface ActiveRisk {
@@ -43,6 +47,9 @@ export interface ActiveShipment {
 
 export type RetrievalChannel = 'vector' | 'fts';
 
+/** similarity: оценка схожести 0..1 (локальная демо-база); rrf: ранг после слияния поисков, процентом не показывается. */
+export type SourceScoreKind = 'similarity' | 'rrf';
+
 export interface AiSource {
   id: string;
   doc: string;
@@ -50,6 +57,7 @@ export interface AiSource {
   excerpt: string;
   score: number;
   via: RetrievalChannel[];
+  scoreKind?: SourceScoreKind;
 }
 
 export interface DemoAnswer {
@@ -66,10 +74,20 @@ export interface DemoAnswer {
   };
 }
 
+/** live: ответ настоящего бэкенда; demo: локальная демо-база; error: бэкенд вернул понятную ошибку (например, лимит запросов). */
+export type ChatOrigin = 'live' | 'demo' | 'error';
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   sources?: AiSource[];
   latencyMs?: number;
+  origin?: ChatOrigin;
+  /** Пояснение под ответом, например почему показан ответ из локальной базы. */
+  note?: string;
+  /** Ответ «в регламентах нет ответа»: рисуется отдельным стилем, без источников. */
+  refusal?: boolean;
+  /** Варианты вопросов (1–4): рисуются кнопками под сообщением, как стартовые подсказки. */
+  suggestions?: string[];
 }

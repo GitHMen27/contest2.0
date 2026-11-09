@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { ArrowRight, Check, ChevronDown, TriangleAlert } from 'lucide-react';
 import type { AiAnalyticsResult } from '@/types/logistics';
 
 interface AiAnalyticsCardProps {
@@ -15,46 +16,42 @@ interface RiskTone {
   border: string;
   bg: string;
   stroke: string;
-  glow: string;
 }
 
 function getRiskTone(score: number): RiskTone {
   if (score < 35) {
     return {
       label: 'Низкий',
-      text: 'text-emerald-300',
-      border: 'border-emerald-500/30',
-      bg: 'bg-emerald-500/10',
-      stroke: '#34d399',
-      glow: 'shadow-[0_0_24px_-8px_rgba(52,211,153,0.65)]',
+      text: 'text-emerald-700',
+      border: 'border-emerald-200',
+      bg: 'bg-emerald-50',
+      stroke: '#12b76a',
     };
   }
   if (score < 65) {
     return {
       label: 'Средний',
-      text: 'text-amber-300',
-      border: 'border-amber-500/30',
-      bg: 'bg-amber-500/10',
-      stroke: '#fbbf24',
-      glow: 'shadow-[0_0_24px_-8px_rgba(251,191,36,0.65)]',
+      text: 'text-amber-700',
+      border: 'border-amber-200',
+      bg: 'bg-amber-50',
+      stroke: '#f79009',
     };
   }
   return {
     label: 'Высокий',
-    text: 'text-rose-300',
-    border: 'border-rose-500/30',
-    bg: 'bg-rose-500/10',
-    stroke: '#fb7185',
-    glow: 'shadow-[0_0_24px_-8px_rgba(251,113,133,0.65)]',
+    text: 'text-rose-700',
+    border: 'border-rose-200',
+    bg: 'bg-rose-50',
+    stroke: '#f04438',
   };
 }
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-lg border border-white/5 bg-slate-900/50 px-2.5 py-2">
-      <div className="text-[9px] uppercase tracking-[0.14em] text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm font-semibold text-slate-100">{value}</div>
-      {hint ? <div className="text-[9px] text-slate-500">{hint}</div> : null}
+    <div className="rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-2.5 py-2">
+      <div className="text-[10px] text-[var(--muted)]">{label}</div>
+      <div className="mt-0.5 text-[13px] font-semibold text-[var(--text)]">{value}</div>
+      {hint ? <div className="text-[10px] text-[var(--muted-soft)]">{hint}</div> : null}
     </div>
   );
 }
@@ -62,23 +59,21 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
 export const AiAnalyticsCard: React.FC<AiAnalyticsCardProps> = ({ analytics, isLoading, onAsk }) => {
   if (isLoading) {
     return (
-      <div className="shrink-0 animate-pulse rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-        <div className="mb-3 h-4 w-1/2 rounded bg-slate-800" />
-        <div className="mb-2 h-24 rounded bg-slate-800" />
-        <div className="h-4 w-3/4 rounded bg-slate-800" />
+      <div className="shrink-0 animate-pulse rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
+        <div className="mb-3 h-4 w-1/2 rounded bg-[var(--surface-muted)]" />
+        <div className="mb-2 h-24 rounded bg-[var(--surface-muted)]" />
+        <div className="h-4 w-3/4 rounded bg-[var(--surface-muted)]" />
       </div>
     );
   }
 
   if (!analytics) {
     return (
-      <div className="shrink-0 rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/40 p-5 text-center">
-        <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg">
-          🧠
-        </div>
-        <div className="text-sm font-medium text-slate-300">AI-анализ маршрута</div>
-        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-          Выберите разные РЦ отправления и назначения, чтобы увидеть риск, топливо и рекомендации по регламентам.
+      <div className="shrink-0 rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--surface)] p-5 text-center">
+        <div className="text-[13px] font-medium text-[var(--text)]">AI-анализ маршрута</div>
+        <p className="mt-1 text-[11px] leading-relaxed text-[var(--muted)]">
+          Выберите разные РЦ отправления и назначения, чтобы увидеть риск, топливо и рекомендации по
+          регламентам.
         </p>
       </div>
     );
@@ -91,37 +86,23 @@ export const AiAnalyticsCard: React.FC<AiAnalyticsCardProps> = ({ analytics, isL
   const question = `Рейс ${analytics.distanceKm} км, ${analytics.estimatedHours} ч в пути. Что говорят регламенты про дальние рейсы, отдых водителя и ограничения?`;
 
   return (
-    <section
-      className={`relative shrink-0 overflow-hidden rounded-2xl border bg-slate-900/70 p-4 shadow-2xl backdrop-blur-xl ${tone.border}`}
-    >
-      <div className="pointer-events-none absolute -right-14 -top-16 h-40 w-40 rounded-full bg-purple-500/10 blur-3xl" />
-
-      <div className="relative flex items-start justify-between gap-2">
+    <section className="shrink-0 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
+      <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-purple-400 opacity-70" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-purple-400" />
-            </span>
-            <h2 className="text-[10px] font-semibold uppercase tracking-[0.2em] text-purple-300">
-              AI-анализ маршрута
-            </h2>
-          </div>
-          <p className="mt-1 text-[10px] text-slate-500">
-            правило-ориентированная модель · 3 регламента
-          </p>
+          <h2 className="text-xs font-semibold text-[var(--text)]">AI-анализ маршрута</h2>
+          <p className="mt-0.5 text-[11px] text-[var(--muted)]">правила · 3 регламента</p>
         </div>
         <span
-          className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${tone.border} ${tone.bg} ${tone.text}`}
+          className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${tone.border} ${tone.bg} ${tone.text}`}
         >
           Риск {tone.label.toLowerCase()}
         </span>
       </div>
 
-      <div className="relative mt-3 flex items-center gap-4">
-        <div className={`relative h-[88px] w-[88px] shrink-0 rounded-full ${tone.glow}`}>
+      <div className="mt-3 flex items-center gap-4">
+        <div className="relative h-[84px] w-[84px] shrink-0">
           <svg viewBox="0 0 88 88" className="h-full w-full -rotate-90">
-            <circle cx="44" cy="44" r={radius} fill="none" stroke="rgba(148,163,184,0.12)" strokeWidth="8" />
+            <circle cx="44" cy="44" r={radius} fill="none" stroke="var(--surface-muted)" strokeWidth="8" />
             <circle
               cx="44"
               cy="44"
@@ -136,8 +117,8 @@ export const AiAnalyticsCard: React.FC<AiAnalyticsCardProps> = ({ analytics, isL
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={`text-xl font-bold ${tone.text}`}>{analytics.riskScore}%</span>
-            <span className="text-[8px] uppercase tracking-[0.18em] text-slate-500">риск</span>
+            <span className={`text-lg font-semibold ${tone.text}`}>{analytics.riskScore}%</span>
+            <span className="text-[9px] text-[var(--muted)]">риск</span>
           </div>
         </div>
 
@@ -149,46 +130,48 @@ export const AiAnalyticsCard: React.FC<AiAnalyticsCardProps> = ({ analytics, isL
         </div>
       </div>
 
-      <div className="relative mt-3 rounded-xl border border-purple-500/15 bg-purple-500/[0.06] p-2.5">
-        <div className="mb-1 flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-purple-300">
-          <span>✦</span> Рекомендация системы
-        </div>
-        <p className="text-[11px] leading-relaxed text-slate-300">{analytics.recommendation}</p>
+      <div className="mt-3 rounded-lg border border-[var(--accent-line)] bg-[var(--accent-soft)] p-3">
+        <div className="mb-1 text-[10px] font-semibold text-[var(--accent)]">Рекомендация</div>
+        <p className="text-[11px] leading-relaxed text-[var(--muted)]">{analytics.recommendation}</p>
       </div>
 
-      <details className="group relative mt-3 rounded-xl border border-white/5 bg-slate-950/40 [&::-webkit-details-marker]:hidden">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-[10px] text-slate-400 transition hover:text-slate-200">
-          <span className="text-[9px] uppercase tracking-[0.14em] text-slate-500">Факторы риска</span>
-          <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px] text-slate-400">
+      <details className="group mt-3 rounded-lg border border-[var(--line)] [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-2 text-[10px] text-[var(--muted)] transition hover:text-[var(--text)]">
+          <span>Факторы риска</span>
+          <span className="rounded-full bg-[var(--surface-muted)] px-1.5 py-0.5 text-[9px] text-[var(--muted)]">
             {analytics.activeRisks.length}
           </span>
-          <span className="ml-auto text-slate-600 transition-transform group-open:rotate-180">⌄</span>
+          <ChevronDown className="ml-auto h-3.5 w-3.5 text-[var(--muted-soft)] transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
-        <div className="space-y-1 border-t border-white/5 p-1.5">
+        <div className="space-y-1 border-t border-[var(--line)] p-2">
           {analytics.activeRisks.map((risk) => (
             <div
               key={risk.type ?? risk.message}
               className={`flex items-start gap-2 rounded-lg border px-2.5 py-1.5 text-[10px] leading-snug ${
                 risk.severity === 'high'
-                  ? 'border-rose-500/20 bg-rose-500/[0.06] text-rose-200'
+                  ? 'border-rose-200 bg-rose-50 text-rose-700'
                   : risk.severity === 'medium'
-                    ? 'border-amber-500/20 bg-amber-500/[0.06] text-amber-200'
-                    : 'border-emerald-500/20 bg-emerald-500/[0.06] text-emerald-200'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
               }`}
             >
-              <span className="mt-px">{risk.severity === 'low' ? '✓' : '▲'}</span>
+              {risk.severity === 'low' ? (
+                <Check className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+              ) : (
+                <TriangleAlert className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+              )}
               <span>{risk.message}</span>
             </div>
           ))}
         </div>
       </details>
 
-      <div className="relative mt-2.5 flex flex-wrap items-center gap-1.5">
-        <span className="text-[9px] uppercase tracking-[0.14em] text-slate-500">Основание:</span>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] text-[var(--muted)]">Основание:</span>
         {analytics.ruleSources.map((doc) => (
           <span
             key={doc}
-            className="rounded border border-slate-700/80 bg-slate-800/50 px-1.5 py-0.5 font-mono text-[9px] text-slate-400"
+            className="rounded border border-[var(--line)] bg-[var(--surface-soft)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--muted)]"
           >
             {doc}
           </span>
@@ -199,11 +182,10 @@ export const AiAnalyticsCard: React.FC<AiAnalyticsCardProps> = ({ analytics, isL
         <button
           type="button"
           onClick={() => onAsk(question)}
-          className="relative mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-purple-400/30 bg-linear-to-r from-purple-600/20 to-indigo-600/20 px-3 py-2 text-[11px] font-medium text-purple-100 transition hover:border-purple-300/60 hover:from-purple-600/30 hover:to-indigo-600/30"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--accent-line-2)] bg-[var(--surface)] px-3 py-2 text-[11px] font-medium text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
         >
-          <span>🤖</span>
           Спросить RAG-помощника
-          <span className="text-purple-300">→</span>
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       ) : null}
     </section>

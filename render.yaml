@@ -31,3 +31,14 @@ services:
         value: ai-sage/Giga-Embeddings-instruct-480M
       - key: RATE_LIMIT_PER_MINUTE
         value: "30"
+      # Вход на сайт и роли. Пароли и секрет задаются в панели Render (sync: false), в git их нет.
+      - key: AUTH_SECRET
+        sync: false
+      - key: AUTH_ADMIN_USERNAME
+        value: admin
+      - key: AUTH_ADMIN_PASSWORD
+        sync: false
+      - key: AUTH_USER_USERNAME
+        value: demo
+      - key: AUTH_USER_PASSWORD
+        sync: false

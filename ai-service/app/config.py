@@ -60,6 +60,16 @@ class Settings(BaseSettings):
     app_api_key: str = Field(default="", validation_alias=AliasChoices("APP_API_KEY"))  # пусто = без ключа (dev)
     rate_limit_per_minute: int = 30
 
+    # --- Авторизация и роли ------------------------------------------------------------------------
+    # Без AUTH_SECRET (от 16 символов) и хотя бы одного пароля вход отключён (эндпойнт /auth/login отвечает 503).
+    auth_secret: str = ""
+    auth_admin_username: str = "admin"
+    auth_admin_password: str = ""
+    auth_user_username: str = "user"
+    auth_user_password: str = ""
+    auth_token_ttl_minutes: int = 720              # срок жизни токена, по умолчанию 12 часов
+    auth_login_attempts_per_minute: int = 10       # защита от подбора пароля
+
     docs_dir: Path = BASE_DIR / "docs-corpus"
 
     @field_validator("embedding_dim", mode="before")

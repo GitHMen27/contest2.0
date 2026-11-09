@@ -24,6 +24,8 @@ export const HUBS: Hub[] = [
     coords: [59.7891, 30.3831],
     status: 'optimal',
     load: 58,
+    isActive: true,
+    siteUrl: '/shushary',
   },
   {
     id: 'kazan',

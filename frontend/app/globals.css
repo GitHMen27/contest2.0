@@ -1,14 +1,98 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #050810;
-  --foreground: #e2e8f0;
+  --page: #f7f5fa;
+  --page-bg:
+    radial-gradient(900px 480px at 8% -10%, rgba(139, 47, 214, 0.1), transparent 62%),
+    radial-gradient(700px 380px at 100% 0%, rgba(203, 17, 171, 0.06), transparent 58%),
+    linear-gradient(165deg, #faf8fc 0%, #f4f1f8 100%);
+  --surface: #ffffff;
+  --surface-soft: #f8f6fb;
+  --surface-muted: #efeaf6;
+  --line: #e4deee;
+  --line-soft: #efebf6;
+  --line-strong: #cfc5de;
+  --text: #241533;
+  --muted: #6c6079;
+  --muted-soft: #9b8fa9;
+  --warn-soft: #fdf3e3;
+  --warn-text: #a0600c;
+  --accent: #741a9c;
+  --accent-hover: #5b1279;
+  --accent-soft: #f7effc;
+  --accent-soft-2: #efe1fa;
+  --accent-line: #e4cef4;
+  --accent-line-2: #c9a5e7;
+  --priority: #c50fa6;
+  --priority-soft: #fdf0fa;
+  --priority-line: #f4c9ea;
+  --brand-1: #8b2fd6;
+  --brand-2: #cb11ab;
+  --brand-3: #8f0b78;
+  --accent-contrast: #ffffff;
+  color-scheme: light;
+}
+
+.dark {
+  --page: #120c19;
+  --page-bg:
+    radial-gradient(1000px 560px at 10% -12%, rgba(190, 80, 255, 0.16), transparent 62%),
+    radial-gradient(760px 420px at 100% 0%, rgba(203, 17, 171, 0.1), transparent 58%),
+    linear-gradient(165deg, #100b16 0%, #140d1d 50%, #170f21 100%);
+  --surface: #1b1324;
+  --surface-soft: #221a2d;
+  --surface-muted: #2b2138;
+  --line: #362a45;
+  --line-soft: #2a2036;
+  --line-strong: #4b3a5f;
+  --text: #f6f1fb;
+  --muted: #b3a6c3;
+  --muted-soft: #857796;
+  --warn-soft: #2f2314;
+  --warn-text: #f2c078;
+  --accent: #d98aec;
+  --accent-hover: #eba9f9;
+  --accent-soft: #291735;
+  --accent-soft-2: #352045;
+  --accent-line: #4c2a5e;
+  --accent-line-2: #74418d;
+  --priority: #f06ad8;
+  --priority-soft: #2e132b;
+  --priority-line: #5a2554;
+  --brand-1: #9a3fe0;
+  --brand-2: #c916a9;
+  --brand-3: #a10b8d;
+  --accent-contrast: #ffffff;
+  color-scheme: dark;
+
+  --color-emerald-50: #14261c;
+  --color-emerald-100: #1a3327;
+  --color-emerald-200: #245041;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+
+  --color-amber-50: #2b2113;
+  --color-amber-100: #3a2c16;
+  --color-amber-200: #5c4620;
+  --color-amber-500: #e6a83a;
+  --color-amber-700: #f0c47a;
+  --color-amber-800: #f6d99f;
+  --color-amber-900: #fbe8c4;
+
+  --color-rose-50: #2b161a;
+  --color-rose-100: #3a1c22;
+  --color-rose-200: #5c2b33;
+  --color-rose-700: #fda4af;
+
+  --color-sky-500: #7dd3fc;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--page);
+  --color-foreground: var(--text);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-jetbrains-mono);
 }
@@ -19,19 +103,45 @@ body {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background-color: var(--page);
+  background-image: var(--page-bg);
+  color: var(--text);
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+/* Шапка с мягким фиолетовым отливом и фирменный градиент WB для главных действий */
+.header-brand {
+  background-color: var(--surface);
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand-1) 7%, transparent) 0%,
+    transparent 85%
+  );
+}
+
+.gradient-brand {
+  background-image: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 58%, var(--brand-3) 100%);
+  color: var(--accent-contrast);
+  transition: filter 0.2s ease;
+}
+
+.gradient-brand:hover {
+  filter: brightness(1.06);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: var(--muted-soft) transparent;
+}
+
+input,
+textarea {
+  caret-color: var(--accent);
 }
 
 ::selection {
-  background: #7c3aed;
-  color: #ffffff;
+  background: var(--accent-soft-2);
+  color: var(--text);
 }
 
 ::-webkit-scrollbar {
@@ -44,17 +154,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--line);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--accent-line-2);
 }
 
 select option {
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--surface);
+  color: var(--text);
 }
 
 /* ---------- Leaflet ---------- */
@@ -62,89 +172,88 @@ select option {
 .leaflet-container.leaflet-container {
   width: 100%;
   height: 100%;
-  background: #070b14;
+  background: var(--surface-muted);
   font-family: inherit;
   outline: none;
 }
 
 .leaflet-container .leaflet-tile {
-  filter: grayscale(0.8) invert(1) brightness(0.7) contrast(1.25) hue-rotate(195deg) saturate(0.5) !important;
+  filter: saturate(0.55) brightness(1.04);
 }
 
-.leaflet-container .leaflet-tile-pane::after {
-  display: none;
+.dark .leaflet-container .leaflet-tile {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95) saturate(0.25);
 }
 
 .leaflet-control-attribution {
-  background: rgba(2, 6, 23, 0.72) !important;
-  color: #64748b !important;
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--surface) 88%, transparent) !important;
+  color: var(--muted-soft) !important;
   border-radius: 6px 0 0 0;
+  font-size: 10px;
+  backdrop-filter: blur(6px);
 }
 
 .leaflet-control-attribution a {
-  color: #94a3b8 !important;
+  color: var(--muted) !important;
 }
 
 .leaflet-bar {
-  border: 1px solid rgba(148, 163, 184, 0.16) !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18) !important;
 }
 
 .leaflet-control-zoom a {
-  background: rgba(2, 6, 23, 0.85) !important;
-  color: #cbd5e1 !important;
-  border-bottom-color: rgba(148, 163, 184, 0.12) !important;
-  backdrop-filter: blur(8px);
+  background: var(--surface) !important;
+  color: var(--muted) !important;
+  border-bottom-color: var(--line-soft) !important;
 }
 
 .leaflet-control-zoom a:hover {
-  background: rgba(30, 41, 59, 0.95) !important;
-  color: #ffffff !important;
+  background: var(--surface-soft) !important;
+  color: var(--text) !important;
 }
 
 .leaflet-control-scale-line {
-  background: rgba(2, 6, 23, 0.7) !important;
-  border-color: rgba(148, 163, 184, 0.3) !important;
-  color: #94a3b8 !important;
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--surface) 85%, transparent) !important;
+  border-color: var(--line) !important;
+  color: var(--muted) !important;
 }
 
 .leaflet-popup-content-wrapper {
-  background: #0b1120 !important;
-  color: #e2e8f0 !important;
-  border: 1px solid rgba(148, 163, 184, 0.16) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28) !important;
 }
 
 .leaflet-popup-tip {
-  background: #0b1120 !important;
-  border: 1px solid rgba(148, 163, 184, 0.12) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: none !important;
 }
 
 .leaflet-popup-content {
-  margin: 11px 13px !important;
+  margin: 12px 14px !important;
   line-height: 1.45 !important;
 }
 
 .leaflet-popup-close-button {
-  color: #94a3b8 !important;
+  color: var(--muted-soft) !important;
 }
 
 .leaflet-popup-close-button:hover {
-  color: #ffffff !important;
+  color: var(--text) !important;
 }
 
 .hub-tooltip {
-  background: rgba(2, 6, 23, 0.9) !important;
-  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--line) !important;
   border-radius: 6px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
-  color: #e2e8f0 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+  color: var(--text) !important;
   font-size: 10px !important;
   font-weight: 600 !important;
-  letter-spacing: 0.02em;
   padding: 3px 7px !important;
 }
 
@@ -158,45 +267,223 @@ select option {
   border: none !important;
 }
 
+/* Активная точка: золотое кольцо, пульс и подпись */
+.hub-active {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+
+.hub-active-ring {
+  position: absolute;
+  inset: -7px;
+  border-radius: 9999px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: hub-ping 2.4s ease-out infinite;
+}
+
+.hub-active-dot {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: var(--hub-color);
+  border: 2px solid var(--accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.hub-active-label {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 5px);
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--accent-line);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.hub-popup {
+  min-width: 206px;
+  font-family: inherit;
+}
+
+.hub-active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.hub-active-badge::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+
+.hub-popup-actions {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.hub-popup .hub-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.hub-popup .hub-action-primary {
+  background-image: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 58%, var(--brand-3) 100%);
+  color: var(--accent-contrast);
+}
+
+.hub-popup .hub-action-primary:hover {
+  filter: brightness(1.06);
+}
+
+.hub-popup .hub-action-secondary {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.hub-popup .hub-action-secondary:hover {
+  border-color: var(--accent-line-2);
+  background: var(--accent-soft-2);
+}
+
+.hub-popup .hub-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .truck-marker {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 9999px;
-  background: radial-gradient(circle at 30% 30%, #1e293b, #020617);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  box-shadow:
-    0 0 0 4px rgba(15, 23, 42, 0.55),
-    0 10px 24px rgba(0, 0, 0, 0.5);
+  background: var(--surface);
+  border: 1.5px solid var(--accent-line-2);
+  color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
 .truck-marker.priority {
-  border-color: #fbbf24;
+  border-color: var(--priority);
+  color: var(--priority);
   box-shadow:
-    0 0 0 4px rgba(251, 191, 36, 0.14),
-    0 0 22px rgba(251, 191, 36, 0.45),
-    0 10px 24px rgba(0, 0, 0, 0.5);
+    0 0 0 3px color-mix(in srgb, var(--priority) 22%, transparent),
+    0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
-.truck-marker .truck-emoji {
-  font-size: 18px;
-  line-height: 1;
+.truck-marker .truck-icon-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .route-line-priority {
   stroke-dasharray: 10 8;
-  animation: route-dash 1.2s linear infinite;
+  animation: route-dash 1.6s linear infinite;
+}
+
+/* ---------- Warehouse digital twin ---------- */
+
+.warehouse-zone .zone-shape {
+  transition:
+    stroke-opacity 0.15s ease,
+    stroke-width 0.15s ease;
+}
+
+.warehouse-zone:hover .zone-shape {
+  stroke-opacity: 0.95;
+}
+
+.warehouse-zone:focus-visible .zone-shape {
+  stroke: var(--accent);
+  stroke-opacity: 1;
+  stroke-width: 2.6;
+}
+
+.warehouse-employee,
+.warehouse-equipment {
+  cursor: pointer;
+}
+
+.warehouse-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: warehouse-pulse 2.4s ease-out infinite;
+}
+
+@keyframes warehouse-pulse {
+  0% {
+    transform: scale(0.65);
+    opacity: 0.32;
+  }
+  70%,
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
 }
 
 /* ---------- Animations ---------- */
 
 @keyframes pulse-ring {
   0% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  70%,
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@keyframes hub-ping {
+  0% {
     transform: scale(0.65);
-    opacity: 0.75;
+    opacity: 0.9;
   }
   70%,
   100% {
@@ -208,24 +495,5 @@ select option {
 @keyframes route-dash {
   to {
     stroke-dashoffset: -36;
-  }
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
   }
 }
