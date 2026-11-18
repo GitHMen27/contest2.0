@@ -9,7 +9,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Сначала только манифесты: слой с зависимостями кешируется, пока они не меняются
 COPY package.json package-lock.json ./
-RUN npm ci
+# npm ci строго по локу; если лок, собранный на Windows, не содержит Linux-зависимостей
+# (например @emnapi/*), npm install сам их допишет внутри образа.
+RUN npm ci || npm install --no-audit --no-fund
 
 COPY . .
 

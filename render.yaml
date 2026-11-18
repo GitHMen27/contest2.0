@@ -20,7 +20,7 @@ services:
       # Адрес сайта на Vercel, например https://your-site.vercel.app
       - key: CORS_ORIGINS
         sync: false
-      # Точный id чат-модели из каталога Cloud.ru (python check_chat.py --list)
+      # Точный id чат-модели из каталога Cloud.ru (python scripts/check_chat.py --list)
       - key: CLOUD_CHAT_MODEL
         sync: false
       - key: LLM_PROVIDER

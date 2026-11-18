@@ -7,14 +7,20 @@
 from __future__ import annotations
 
 import hmac
+import json
 import logging
+import threading
+import time
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any, Literal
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.auth import router as auth_router
+from app.auth import require_admin, router as auth_router
 from app.config import get_settings
 from app.ratelimit import RateLimiter
 
@@ -98,6 +104,159 @@ def _to_sources(hits) -> list[Source]:
     return [Source(doc=h.doc, section=h.section, content=h.content, score=h.score, via=h.via) for h in hits]
 
 
+ActionKind = Literal[
+    "create_task",
+    "create_incident",
+    "assign_employee",
+    "change_incident_status",
+    "change_task_status",
+]
+
+TASK_PRIORITIES = {"urgent", "high", "normal", "low"}
+TASK_STATUSES = {"new", "in_progress", "blocked", "done"}
+INCIDENT_STATUSES = {"new", "in_progress", "resolved"}
+INCIDENT_SEVERITIES = {"critical", "high", "medium", "low"}
+INCIDENT_CATEGORIES = {"hub", "warehouse", "transport", "staff", "equipment", "sla"}
+
+
+class OpsAssistRequest(BaseModel):
+    question: str = Field(..., min_length=3, max_length=1000)
+    snapshot: dict[str, Any] = Field(default_factory=dict, description="Снимок сети и склада, собранный фронтендом")
+
+
+class AiProposal(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    id: str
+    kind: ActionKind
+    title: str
+    description: str
+    reason: str
+    summary: str
+    payload: dict[str, Any]
+    requires_admin: bool = Field(default=True, alias="requiresAdmin")
+
+
+class OpsAssistResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    answer: str
+    findings: list[str]
+    proposals: list[AiProposal]
+    generated_at: int = Field(..., alias="generatedAt")
+    source: Literal["backend"] = "backend"
+
+
+class AiActionRequest(BaseModel):
+    kind: ActionKind
+    title: str = Field(..., min_length=1, max_length=200)
+    payload: dict[str, Any]
+    summary: str = Field(default="", max_length=500)
+
+
+class AiActionResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    accepted: bool = True
+    audit_id: str = Field(..., alias="auditId")
+    at: int
+    actor: str
+    kind: ActionKind
+
+
+class AiAuditResponse(BaseModel):
+    entries: list[dict[str, Any]]
+    count: int
+
+
+_AUDIT_LOCK = threading.Lock()
+
+
+def _audit_file() -> Path:
+    return Path(get_settings().ai_audit_path)
+
+
+def _append_audit(entry: dict[str, Any]) -> None:
+    path = _audit_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(entry, ensure_ascii=False, separators=(",", ":"))
+    with _AUDIT_LOCK:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(line + "\n")
+
+
+def _read_audit(limit: int) -> list[dict[str, Any]]:
+    path = _audit_file()
+    if not path.exists():
+        return []
+    with _AUDIT_LOCK:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    entries: list[dict[str, Any]] = []
+    for line in reversed(lines[-limit:]):
+        try:
+            value = json.loads(line)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(value, dict):
+            entries.append(value)
+    return entries
+
+
+def _require_text(payload: dict[str, Any], key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise HTTPException(status_code=422, detail=f"В действии отсутствует поле {key}.")
+    return value.strip()
+
+
+def _optional_text(payload: dict[str, Any], key: str) -> str | None:
+    value = payload.get(key)
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _validate_action(kind: ActionKind, payload: dict[str, Any]) -> None:
+    """Проверка действия до записи в аудит: никаких «пустых» или неизвестных операций."""
+    if kind == "create_task":
+        _require_text(payload, "title")
+        _require_text(payload, "zoneId")
+        priority = _require_text(payload, "priority")
+        if priority not in TASK_PRIORITIES:
+            raise HTTPException(status_code=422, detail="Недопустимый приоритет задачи.")
+        due_at = payload.get("dueAt")
+        if due_at is not None and not isinstance(due_at, (int, float)):
+            raise HTTPException(status_code=422, detail="dueAt должен быть числом (Unix ms).")
+        return
+    if kind == "create_incident":
+        _require_text(payload, "title")
+        _require_text(payload, "description")
+        _require_text(payload, "hubId")
+        _require_text(payload, "owner")
+        severity = _require_text(payload, "severity")
+        category = _require_text(payload, "category")
+        if severity not in INCIDENT_SEVERITIES:
+            raise HTTPException(status_code=422, detail="Недопустимая важность инцидента.")
+        if category not in INCIDENT_CATEGORIES:
+            raise HTTPException(status_code=422, detail="Недопустимая категория инцидента.")
+        return
+    if kind == "assign_employee":
+        _require_text(payload, "taskId")
+        _require_text(payload, "assigneeId")
+        return
+    if kind == "change_incident_status":
+        _require_text(payload, "incidentId")
+        status = _require_text(payload, "status")
+        if status not in INCIDENT_STATUSES:
+            raise HTTPException(status_code=422, detail="Недопустимый статус инцидента.")
+        return
+    if kind == "change_task_status":
+        _require_text(payload, "taskId")
+        status = _require_text(payload, "status")
+        if status not in TASK_STATUSES:
+            raise HTTPException(status_code=422, detail="Недопустимый статус задачи.")
+        return
+    raise HTTPException(status_code=422, detail="Неизвестное действие.")
+
+
 def _fail(error: Exception, what: str) -> HTTPException:
     logger.exception("Ошибка: %s", what)
     # Понятное сообщение показываем только для наших собственных ошибок (RuntimeError с подсказкой)
@@ -153,3 +312,63 @@ def rag_ask(req: QuestionRequest):
     except Exception as error:  # noqa: BLE001
         raise _fail(error, "ответ") from error
     return AnswerResponse(answer=text, sources=_to_sources(hits))
+
+
+@app.post("/ai/assist", response_model=OpsAssistResponse, tags=["ai"], dependencies=[Depends(guard)])
+def ai_assist(req: OpsAssistRequest):
+    """Анализ операционного снимка и безопасные черновики действий.
+
+    Эндпойнт ничего не меняет: только читает переданный снимок и возвращает предложения.
+    """
+    from app.ops import analyze
+
+    try:
+        result = analyze(req.snapshot, req.question)
+    except Exception as error:  # noqa: BLE001
+        raise _fail(error, "AI-анализ операций") from error
+    return OpsAssistResponse(**result)
+
+
+@app.post("/ai/action", response_model=AiActionResponse, tags=["ai"])
+def ai_action(
+    req: AiActionRequest,
+    user: dict = Depends(require_admin),
+    _: None = Depends(guard),
+):
+    """Подтверждённое администратором действие.
+
+    Сервер проверяет права и формат, пишет запись в аудит и только после этого фронтенд
+    применяет изменение к локальному демо-состоянию. Неподтверждённые действия сюда не попадают.
+    """
+    _validate_action(req.kind, req.payload)
+    audit_id = str(uuid4())
+    at = int(time.time() * 1000)
+    entry = {
+        "id": audit_id,
+        "at": at,
+        "actor": user["sub"],
+        "role": user["role"],
+        "kind": req.kind,
+        "title": req.title,
+        "summary": req.summary,
+        "payload": req.payload,
+        "result": "accepted",
+        "source": "ai-confirmed",
+    }
+    try:
+        _append_audit(entry)
+    except OSError as error:
+        logger.exception("Не удалось записать AI-аудит")
+        raise HTTPException(status_code=503, detail="Журнал AI-действий недоступен") from error
+    logger.info("AI action %s by %s: %s", req.kind, user["sub"], req.title)
+    return AiActionResponse(audit_id=audit_id, at=at, actor=user["sub"], kind=req.kind)
+
+
+@app.get("/ai/audit", response_model=AiAuditResponse, tags=["ai"], dependencies=[Depends(guard)])
+def ai_audit(
+    limit: int = Query(20, ge=1, le=200, description="Сколько последних записей вернуть"),
+    user: dict = Depends(require_admin),
+):
+    """Последние подтверждённые AI-действия. Доступно только администратору."""
+    entries = _read_audit(limit)
+    return AiAuditResponse(entries=entries, count=len(entries))

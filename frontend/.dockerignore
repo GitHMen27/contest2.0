@@ -26,6 +26,3 @@ Dockerfile
 .dockerignore
 docker-compose*.yml
 *.md
-
-# Локальный SQL-дамп: сайт его не использует
-database

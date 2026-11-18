@@ -1,18 +1,69 @@
-version: '3.8'
+# Локальная инфраструктура проекта.
+#
+# По умолчанию поднимается только Postgres с расширением pgvector — этого достаточно,
+# если бэкенд и фронтенд запускаются на хосте (см. README, «Быстрый старт»):
+#   docker compose up -d db
+#
+# Весь стек в контейнерах:
+#   docker compose --profile full up --build
+#   сайт: http://localhost:3000, API: http://localhost:8000/docs
+
+name: wb-logistics
 
 services:
   db:
-    image: postgres:16-alpine
-    container_name: postgres_db
-    restart: always
+    # Обычный postgres:16-alpine не содержит pgvector, а схема RAG использует тип vector.
+    image: pgvector/pgvector:pg16
+    container_name: wb-logistics-db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: mydatabase
-      POSTGRES_USER: myuser
-      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: ${POSTGRES_DB:-mydatabase}
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mypassword}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-mydatabase}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ai-service:
+    profiles: ["full"]
+    build: ./ai-service
+    container_name: wb-logistics-api
+    restart: unless-stopped
+    # .env бэкенда содержит ключи провайдеров; если файла нет, сервис всё равно стартует
+    # и /health покажет, чего не хватает.
+    env_file:
+      - path: ./ai-service/.env
+        required: false
+    environment:
+      # Внутри compose база доступна по имени сервиса db, а не по localhost.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-myuser}:${POSTGRES_PASSWORD:-mypassword}@db:5432/${POSTGRES_DB:-mydatabase}
+      # Фронтенд из профиля full обращается к API напрямую с localhost:3000.
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    profiles: ["full"]
+    build:
+      context: ./frontend
+      args:
+        # Сайт собирается как статика: адрес API вшивается на этапе сборки.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: wb-logistics-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - ai-service
 
 volumes:
   postgres_data:

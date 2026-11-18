@@ -1,0 +1,4 @@
+# Зависимости для разработки и тестов. Устанавливаются поверх runtime-зависимостей:
+#   pip install -r requirements-dev.txt
+-r requirements.txt
+pytest

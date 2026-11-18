@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # cloudru: любая чат-модель из каталога Cloud.ru Foundation Models (тот же ключ CLOUD_API_KEY, что и у эмбеддингов).
     # gigachat: GigaChat API (Сбер), нужен GIGACHAT_CREDENTIALS.
     llm_provider: str = "cloudru"
-    cloud_chat_model: str = ""                     # точный id модели; список: python check_chat.py --list
+    cloud_chat_model: str = ""                     # точный id модели; список: python scripts/check_chat.py --list
 
     # --- GigaChat (нужен только при LLM_PROVIDER=gigachat или EMBEDDING_PROVIDER=gigachat) ---------------------
     # Ключ авторизации из личного кабинета Studio (одной строкой, без кавычек)
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("GIGACHAT_CREDENTIALS", "GIGACHAT_AUTH_KEY", "GIGACHAT_API_KEY", "GIGACHAT_KEY"),
     )
     gigachat_scope: str = "GIGACHAT_API_PERS"      # для физических лиц
-    gigachat_model: str = "GigaChat-2"             # модель для ответов при LLM_PROVIDER=gigachat (список: python check_gigachat.py)
+    gigachat_model: str = "GigaChat-2"             # модель для ответов при LLM_PROVIDER=gigachat (список: python scripts/check_gigachat.py)
     gigachat_embedding_model: str = "Embeddings"   # нужна только при EMBEDDING_PROVIDER=gigachat
     gigachat_ca_bundle_file: str = ""              # путь к «Russian Trusted Root CA» (.cer/.crt)
     gigachat_verify_ssl_certs: bool = True         # false только для разработки
@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     auth_login_attempts_per_minute: int = 10       # защита от подбора пароля
 
     docs_dir: Path = BASE_DIR / "docs-corpus"
+
+    # Журнал подтверждённых AI-действий. Каждая запись — отдельная строка JSONL.
+    ai_audit_path: Path = BASE_DIR / "data" / "ai-audit.jsonl"
 
     @field_validator("embedding_dim", mode="before")
     @classmethod

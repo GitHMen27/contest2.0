@@ -142,7 +142,7 @@ def _chat_cloudru(messages, functions, temperature, max_tokens, model) -> LLMRes
 
     if not model:
         raise RuntimeError(
-            "Не задана чат-модель Cloud.ru. Выполни python check_chat.py --list, выбери id модели "
+            "Не задана чат-модель Cloud.ru. Выполни python scripts/check_chat.py --list, выбери id модели "
             "и впиши в .env: CLOUD_CHAT_MODEL=..."
         )
     payload: dict[str, Any] = {"model": model, "messages": messages, "temperature": temperature}
